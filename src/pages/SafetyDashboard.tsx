@@ -1,0 +1,540 @@
+import React, { useState } from 'react';
+import Header from '../components/Header';
+import { 
+  Shield, 
+  Mic, 
+  Video, 
+  MapPin, 
+  Phone, 
+  Users, 
+  AlertTriangle,
+  Clock,
+  CheckCircle,
+  Volume2,
+  Camera,
+  Navigation,
+  Ambulance,
+  X,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+
+const SafetyDashboard: React.FC = () => {
+  const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
+  const [isPanicActive, setIsPanicActive] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [isVoiceActive, setIsVoiceActive] = useState(true);
+
+  const [recentAlerts, setRecentAlerts] = useState([
+    {
+      id: 1,
+      type: 'panic',
+      location: 'Coach B4, Train 12951',
+      time: '2 minutes ago',
+      status: 'active',
+      responder: 'RPF Team Delhi'
+    },
+    {
+      id: 2,
+      type: 'harassment',
+      location: 'Platform 3, New Delhi',
+      time: '15 minutes ago',
+      status: 'resolved',
+      responder: 'Station Security'
+    }
+  ]);
+
+  const emergencyContacts = [
+    { name: 'Railway Police', number: '139', type: 'primary' },
+    { name: 'Women Helpline', number: '1091', type: 'secondary' },
+    { name: 'Emergency Services', number: '112', type: 'secondary' }
+  ];
+
+  const safetyFeatures = [
+    {
+      icon: Mic,
+      title: 'Voice Detection',
+      description: 'Always listening for "Help" or "Bachao"',
+      status: 'Active',
+      color: 'text-green-500'
+    },
+    {
+      icon: MapPin,
+      title: 'Live Location',
+      description: 'GPS tracking for emergency response',
+      status: 'Active',
+      color: 'text-green-500'
+    },
+    {
+      icon: Camera,
+      title: 'Auto Recording',
+      description: 'Emergency video/audio capture',
+      status: 'Ready',
+      color: 'text-blue-500'
+    },
+    {
+      icon: Phone,
+      title: 'Quick Contacts',
+      description: 'Instant access to help numbers',
+      status: 'Connected',
+      color: 'text-green-500'
+    }
+  ];
+
+  const activatePanic = () => {
+    setIsPanicActive(true);
+    setIsRecording(true);
+    setCountdown(10);
+    setShowEmergencyMenu(false);
+    
+    // Simulate location sharing and alerts
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Here would trigger actual emergency protocols
+          sendEmergencyAlert();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const sendEmergencyAlert = () => {
+    // Simulate emergency alert sending
+    console.log('Emergency alert sent to Railway Police and family contacts');
+    setIsPanicActive(false);
+    setIsRecording(false);
+    setShowSuccessMessage(true);
+    
+    // Hide success message after 5 seconds
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+    }, 5000);
+  };
+
+  const cancelPanic = () => {
+    setIsPanicActive(false);
+    setIsRecording(false);
+    setCountdown(0);
+  };
+
+  const handleEmergencyCall = (type: string) => {
+    setShowEmergencyMenu(false);
+    let number = '';
+    let message = '';
+    
+    switch (type) {
+      case 'police':
+        number = '139';
+        message = 'Connecting to Railway Police...';
+        break;
+      case 'ambulance':
+        number = '108';
+        message = 'Calling Ambulance...';
+        break;
+      case 'women':
+        number = '1091';
+        message = 'Connecting to Women Helpline...';
+        break;
+      default:
+        return;
+    }
+    
+    alert(`${message}\nDialing ${number}`);
+  };
+
+  // Success Message Popup
+  if (showSuccessMessage) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl animate-fade-in">
+            <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto mb-4">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Alert Sent Successfully!</h2>
+            <p className="text-gray-600 mb-4">Emergency call has been sent to the nearest local police station and Railway Police Force.</p>
+            
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="text-green-800 text-sm space-y-1 text-left">
+                <p>✓ Location shared with authorities</p>
+                <p>✓ Emergency contacts notified</p>
+                <p>✓ Audio/Video recording started</p>
+                <p>✓ Railway Police alerted</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowSuccessMessage(false)}
+              className="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors font-semibold"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Emergency Menu with ALL safety features
+  if (showEmergencyMenu) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Emergency & Safety</h2>
+              <button 
+                onClick={() => setShowEmergencyMenu(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Panic Button */}
+              <button 
+                onClick={activatePanic}
+                className="w-full p-6 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg"
+              >
+                <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                <h3 className="text-lg font-bold mb-1">PANIC BUTTON</h3>
+                <p className="text-red-100 text-sm">Immediate emergency alert</p>
+              </button>
+
+              {/* Voice Commands Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Volume2 className="h-5 w-5 text-blue-500" />
+                    <span className="font-semibold text-blue-800">Voice Commands</span>
+                  </div>
+                  <button
+                    onClick={() => setIsVoiceActive(!isVoiceActive)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                      isVoiceActive ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                        isVoiceActive ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-blue-700 text-sm">Say "Help" or "Bachao" to activate panic button</p>
+                {isVoiceActive && (
+                  <div className="mt-2 flex items-center space-x-2 text-green-600 text-sm">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Voice commands active</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Safety Features Status */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900">Safety Features</h3>
+                
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <MapPin className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="font-medium text-green-800">Live Location</p>
+                      <p className="text-sm text-green-600">GPS tracking active</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Camera className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="font-medium text-blue-800">Auto Recording</p>
+                      <p className="text-sm text-blue-600">Emergency video/audio capture ready</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Clock className="h-5 w-5 text-purple-500" />
+                    <div>
+                      <p className="font-medium text-purple-800">Quick Response</p>
+                      <p className="text-sm text-purple-600">Average response time: &lt; 2 minutes</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency Contacts */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900">Emergency Contacts</h3>
+                
+                <button
+                  onClick={() => handleEmergencyCall('police')}
+                  className="w-full p-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center space-x-3"
+                >
+                  <Shield className="h-6 w-6" />
+                  <div className="text-left">
+                    <div className="font-bold">Railway Police</div>
+                    <div className="text-sm opacity-90">Call 139</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleEmergencyCall('ambulance')}
+                  className="w-full p-4 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors flex items-center space-x-3"
+                >
+                  <Ambulance className="h-6 w-6" />
+                  <div className="text-left">
+                    <div className="font-bold">Ambulance</div>
+                    <div className="text-sm opacity-90">Call 108</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleEmergencyCall('women')}
+                  className="w-full p-4 bg-pink-500 text-white rounded-xl hover:bg-pink-600 transition-colors flex items-center space-x-3"
+                >
+                  <Users className="h-6 w-6" />
+                  <div className="text-left">
+                    <div className="font-bold">Women Helpline</div>
+                    <div className="text-sm opacity-90">Call 1091</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Safety Tips */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-800 mb-2">Safety Guidelines:</h4>
+                <div className="text-yellow-700 text-sm space-y-1">
+                  <p>• Stay calm and speak clearly</p>
+                  <p>• Provide exact location details</p>
+                  <p>• Describe the nature of emergency</p>
+                  <p>• Follow instructions from authorities</p>
+                  <p>• Keep your phone charged during travel</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Emergency Activated Screen
+  if (isPanicActive) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="fixed inset-0 bg-red-600 bg-opacity-95 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
+            <div className="animate-pulse">
+              <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">EMERGENCY ACTIVATED</h2>
+            <p className="text-gray-600 mb-6">Alert being sent to Railway Police and your emergency contacts</p>
+            
+            <div className="text-4xl font-bold text-red-500 mb-6">{countdown}</div>
+            
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="flex flex-col items-center">
+                <div className="p-3 bg-red-100 rounded-full mb-2">
+                  <MapPin className="h-6 w-6 text-red-500" />
+                </div>
+                <span className="text-xs text-gray-600">Location Shared</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="p-3 bg-red-100 rounded-full mb-2">
+                  <Mic className={`h-6 w-6 text-red-500 ${isRecording ? 'animate-pulse' : ''}`} />
+                </div>
+                <span className="text-xs text-gray-600">Recording Audio</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="p-3 bg-red-100 rounded-full mb-2">
+                  <Video className={`h-6 w-6 text-red-500 ${isRecording ? 'animate-pulse' : ''}`} />
+                </div>
+                <span className="text-xs text-gray-600">Recording Video</span>
+              </div>
+            </div>
+            
+            <button 
+              onClick={cancelPanic}
+              className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+            >
+              Cancel Emergency
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Safety Dashboard</h1>
+          <p className="text-gray-600">Your personal safety command center with AI-powered protection</p>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main Safety Panel */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Emergency Panic Section */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Emergency Response</h2>
+                <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>Protected</span>
+                </div>
+              </div>
+
+              <div className="text-center p-8 bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border border-red-200">
+                <div className="mb-6">
+                  <button 
+                    onClick={() => setShowEmergencyMenu(true)}
+                    className="p-6 bg-red-500 text-white rounded-full shadow-2xl hover:bg-red-600 transition-all transform hover:scale-110 animate-pulse"
+                    title="Emergency Panic Button - Press for immediate help"
+                  >
+                    <AlertTriangle className="h-12 w-12" />
+                  </button>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">PANIC BUTTON</h3>
+                <p className="text-gray-600 mb-4">Press the red button above for immediate emergency assistance</p>
+                <p className="text-sm text-red-600 font-medium">All safety features are enabled and monitoring your journey</p>
+              </div>
+            </div>
+
+            {/* Safety Features */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Safety Features Status</h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                {safetyFeatures.map((feature, index) => {
+                  const IconComponent = feature.icon;
+                  return (
+                    <div key={index} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
+                      <div className="flex items-start space-x-3">
+                        <div className="p-2 bg-gray-100 rounded-lg">
+                          <IconComponent className={`h-5 w-5 ${feature.color}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{feature.title}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{feature.description}</p>
+                          <div className={`text-xs font-medium mt-2 ${feature.color}`}>
+                            {feature.status}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Safety Alerts */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Recent Safety Alerts</h2>
+              <div className="space-y-4">
+                {recentAlerts.map((alert) => (
+                  <div key={alert.id} className="p-4 border border-gray-200 rounded-xl">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3">
+                        <div className={`p-2 rounded-full ${
+                          alert.status === 'active' ? 'bg-red-100' : 'bg-green-100'
+                        }`}>
+                          {alert.status === 'active' ? (
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 capitalize">{alert.type} Alert</h3>
+                          <p className="text-sm text-gray-600">{alert.location}</p>
+                          <p className="text-xs text-gray-500 mt-1">Responded by: {alert.responder}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          alert.status === 'active' 
+                            ? 'bg-red-100 text-red-700' 
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {alert.status}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">{alert.time}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Emergency Contacts */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Emergency Contacts</h2>
+              <div className="space-y-3">
+                {emergencyContacts.map((contact, index) => (
+                  <button
+                    key={index}
+                    className={`w-full p-4 rounded-xl border-2 transition-all hover:shadow-md ${
+                      contact.type === 'primary'
+                        ? 'border-red-200 bg-red-50 hover:bg-red-100'
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-left">
+                        <h3 className="font-semibold text-gray-900">{contact.name}</h3>
+                        <p className="text-2xl font-bold text-red-600">{contact.number}</p>
+                      </div>
+                      <Phone className="h-6 w-6 text-gray-400" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Safety Tips */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Safety Tips</h2>
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 font-medium">Always keep your phone charged during travel</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-800 font-medium">Share your journey details with family</p>
+                </div>
+                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="text-sm text-yellow-800 font-medium">Stay alert in crowded areas</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <p className="text-sm text-purple-800 font-medium">Use the panic button if you feel unsafe</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SafetyDashboard;
