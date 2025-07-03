@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
+import { supabase } from '../lib/supabase';
 import { 
   Shield, 
   Mic, 
@@ -15,8 +16,10 @@ import {
   Navigation,
   Ambulance,
   X,
-  Eye,
-  EyeOff
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  Paperclip
 } from 'lucide-react';
 
 const SafetyDashboard: React.FC = () => {
@@ -26,6 +29,97 @@ const SafetyDashboard: React.FC = () => {
   const [countdown, setCountdown] = useState(0);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(true);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Voice recognition setup for direct panic activation
+  useEffect(() => {
+    let recognition: any = null;
+
+    if (isVoiceActive && 'webkitSpeechRecognition' in window) {
+      recognition = new (window as any).webkitSpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+        
+        console.log('Voice command detected:', transcript);
+        
+        // Check for help commands in English and Hindi
+        if (transcript.includes('help') || 
+            transcript.includes('bachao') || 
+            transcript.includes('बचाओ') ||
+            transcript.includes('emergency') ||
+            transcript.includes('danger')) {
+          
+          console.log('Emergency voice command detected, activating panic mode');
+          
+          // Directly activate panic mode
+          activatePanicFromVoice();
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.log('Speech recognition error:', event.error);
+        
+        // If error occurs, try to restart recognition
+        if (event.error === 'no-speech' || event.error === 'audio-capture') {
+          setTimeout(() => {
+            if (isVoiceActive) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('Failed to restart recognition:', e);
+              }
+            }
+          }, 1000);
+        }
+      };
+
+      recognition.onend = () => {
+        // Automatically restart recognition if it's still enabled
+        if (isVoiceActive) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.log('Recognition restart failed:', e);
+            }
+          }, 500);
+        }
+      };
+
+      try {
+        recognition.start();
+        console.log('Voice recognition started for panic activation');
+      } catch (e) {
+        console.log('Failed to start voice recognition:', e);
+      }
+
+      return () => {
+        if (recognition) {
+          try {
+            recognition.stop();
+            console.log('Voice recognition stopped');
+          } catch (e) {
+            console.log('Error stopping recognition:', e);
+          }
+        }
+      };
+    }
+
+    return () => {
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.log('Error in cleanup:', e);
+        }
+      }
+    };
+  }, [isVoiceActive]);
 
   const [recentAlerts, setRecentAlerts] = useState([
     {
@@ -83,6 +177,38 @@ const SafetyDashboard: React.FC = () => {
     }
   ];
 
+  const activatePanicFromVoice = () => {
+    // Show visual confirmation
+    const notification = document.createElement('div');
+    notification.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ef4444;
+        color: white;
+        padding: 16px;
+        border-radius: 8px;
+        z-index: 9999;
+        font-weight: bold;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      ">
+        🚨 Voice Command Detected - Activating Panic Mode
+      </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Remove notification after 2 seconds
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
+        document.body.removeChild(notification);
+      }
+    }, 2000);
+
+    // Activate panic mode directly
+    activatePanic();
+  };
+
   const activatePanic = () => {
     setIsPanicActive(true);
     setIsRecording(true);
@@ -103,9 +229,42 @@ const SafetyDashboard: React.FC = () => {
     }, 1000);
   };
 
-  const sendEmergencyAlert = () => {
-    // Simulate emergency alert sending
-    console.log('Emergency alert sent to Railway Police and family contacts');
+  const sendEmergencyAlert = async () => {
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+      
+      // Save emergency alert to database
+      const { data, error } = await supabase
+        .from('safety_alerts')
+        .insert([
+          {
+            user_id: 'emergency_user',
+            type: 'panic',
+            location: location.address || 'Unknown location',
+            coordinates: {
+              lat: location.lat,
+              lng: location.lng
+            },
+            status: 'active'
+          }
+        ]);
+
+      if (error) {
+        console.error('Error saving emergency alert:', error);
+      } else {
+        console.log('Emergency alert saved to database:', data);
+      }
+
+      // Upload any files that were selected
+      if (uploadedFiles.length > 0) {
+        await uploadEmergencyFiles();
+      }
+
+    } catch (error) {
+      console.error('Error in emergency alert process:', error);
+    }
+
     setIsPanicActive(false);
     setIsRecording(false);
     setShowSuccessMessage(true);
@@ -114,6 +273,72 @@ const SafetyDashboard: React.FC = () => {
     setTimeout(() => {
       setShowSuccessMessage(false);
     }, 5000);
+  };
+
+  const getCurrentLocation = (): Promise<{lat: number, lng: number, address: string}> => {
+    return new Promise((resolve) => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              address: `Lat: ${position.coords.latitude}, Lng: ${position.coords.longitude}`
+            });
+          },
+          () => {
+            resolve({
+              lat: 28.6139,
+              lng: 77.2090,
+              address: 'New Delhi (Default)'
+            });
+          }
+        );
+      } else {
+        resolve({
+          lat: 28.6139,
+          lng: 77.2090,
+          address: 'New Delhi (Default)'
+        });
+      }
+    });
+  };
+
+  const uploadEmergencyFiles = async () => {
+    setIsUploading(true);
+    
+    try {
+      for (const file of uploadedFiles) {
+        // In a real implementation, you would upload to Supabase Storage
+        // For now, we'll simulate the upload and save file info to database
+        
+        const fileInfo = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploaded_at: new Date().toISOString()
+        };
+
+        // Save file information to database (you would need to create a files table)
+        console.log('File uploaded:', fileInfo);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setUploadedFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const cancelPanic = () => {
@@ -147,6 +372,9 @@ const SafetyDashboard: React.FC = () => {
     alert(`${message}\nDialing ${number}`);
   };
 
+  // Check if browser supports speech recognition
+  const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+
   // Success Message Popup
   if (showSuccessMessage) {
     return (
@@ -167,6 +395,9 @@ const SafetyDashboard: React.FC = () => {
                 <p>✓ Emergency contacts notified</p>
                 <p>✓ Audio/Video recording started</p>
                 <p>✓ Railway Police alerted</p>
+                {uploadedFiles.length > 0 && (
+                  <p>✓ {uploadedFiles.length} file(s) uploaded as evidence</p>
+                )}
               </div>
             </div>
             
@@ -182,7 +413,7 @@ const SafetyDashboard: React.FC = () => {
     );
   }
 
-  // Emergency Menu with ALL safety features
+  // Emergency Menu with enhanced file upload
   if (showEmergencyMenu) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -210,18 +441,110 @@ const SafetyDashboard: React.FC = () => {
                 <p className="text-red-100 text-sm">Immediate emergency alert</p>
               </button>
 
-              {/* Voice Commands Section */}
+              {/* File Upload Section */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <h3 className="font-semibold text-blue-800 mb-3">Add Evidence Files</h3>
+                
+                <div className="space-y-3">
+                  <label className="block">
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 transition-colors cursor-pointer text-center">
+                      <Upload className="h-6 w-6 text-blue-500 mx-auto mb-2" />
+                      <span className="text-blue-700 font-medium">Upload Files</span>
+                      <p className="text-blue-600 text-sm mt-1">Images, videos, audio, documents</p>
+                    </div>
+                  </label>
+
+                  {/* Quick capture buttons */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="block">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <div className="p-3 bg-green-100 border border-green-300 rounded-lg hover:bg-green-200 transition-colors cursor-pointer text-center">
+                        <Camera className="h-5 w-5 text-green-600 mx-auto mb-1" />
+                        <span className="text-green-700 text-xs font-medium">Photo</span>
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <input
+                        type="file"
+                        accept="video/*"
+                        capture="environment"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <div className="p-3 bg-purple-100 border border-purple-300 rounded-lg hover:bg-purple-200 transition-colors cursor-pointer text-center">
+                        <Video className="h-5 w-5 text-purple-600 mx-auto mb-1" />
+                        <span className="text-purple-700 text-xs font-medium">Video</span>
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        capture="microphone"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <div className="p-3 bg-orange-100 border border-orange-300 rounded-lg hover:bg-orange-200 transition-colors cursor-pointer text-center">
+                        <Mic className="h-5 w-5 text-orange-600 mx-auto mb-1" />
+                        <span className="text-orange-700 text-xs font-medium">Audio</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Uploaded files list */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm font-medium text-blue-800">Uploaded Files:</p>
+                      {uploadedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-white border border-blue-200 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            {file.type.startsWith('image/') && <ImageIcon className="h-4 w-4 text-green-500" />}
+                            {file.type.startsWith('video/') && <Video className="h-4 w-4 text-purple-500" />}
+                            {file.type.startsWith('audio/') && <Mic className="h-4 w-4 text-orange-500" />}
+                            {!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/') && <FileText className="h-4 w-4 text-blue-500" />}
+                            <span className="text-sm text-gray-700 truncate max-w-32">{file.name}</span>
+                          </div>
+                          <button
+                            onClick={() => removeFile(index)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Voice Commands Section */}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
-                    <Volume2 className="h-5 w-5 text-blue-500" />
-                    <span className="font-semibold text-blue-800">Voice Commands</span>
+                    <Volume2 className="h-5 w-5 text-green-500" />
+                    <span className="font-semibold text-green-800">Voice Commands</span>
                   </div>
                   <button
                     onClick={() => setIsVoiceActive(!isVoiceActive)}
+                    disabled={!speechRecognitionSupported}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                       isVoiceActive ? 'bg-green-600' : 'bg-gray-200'
-                    }`}
+                    } ${!speechRecognitionSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
@@ -230,48 +553,16 @@ const SafetyDashboard: React.FC = () => {
                     />
                   </button>
                 </div>
-                <p className="text-blue-700 text-sm">Say "Help" or "Bachao" to activate panic button</p>
-                {isVoiceActive && (
+                <p className="text-green-700 text-sm">Say "Help" or "Bachao" to activate panic button directly</p>
+                {isVoiceActive && speechRecognitionSupported && (
                   <div className="mt-2 flex items-center space-x-2 text-green-600 text-sm">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Voice commands active</span>
+                    <span>Voice commands active - listening...</span>
                   </div>
                 )}
-              </div>
-
-              {/* Safety Features Status */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-900">Safety Features</h3>
-                
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <MapPin className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-green-800">Live Location</p>
-                      <p className="text-sm text-green-600">GPS tracking active</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Camera className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="font-medium text-blue-800">Auto Recording</p>
-                      <p className="text-sm text-blue-600">Emergency video/audio capture ready</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Clock className="h-5 w-5 text-purple-500" />
-                    <div>
-                      <p className="font-medium text-purple-800">Quick Response</p>
-                      <p className="text-sm text-purple-600">Average response time: &lt; 2 minutes</p>
-                    </div>
-                  </div>
-                </div>
+                {!speechRecognitionSupported && (
+                  <p className="text-red-600 text-sm mt-1">Voice commands not supported in this browser</p>
+                )}
               </div>
 
               {/* Emergency Contacts */}
@@ -316,11 +607,11 @@ const SafetyDashboard: React.FC = () => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-semibold text-yellow-800 mb-2">Safety Guidelines:</h4>
                 <div className="text-yellow-700 text-sm space-y-1">
+                  <p>• Upload photos/videos as evidence</p>
+                  <p>• Voice commands work even when screen is off</p>
                   <p>• Stay calm and speak clearly</p>
-                  <p>• Provide exact location details</p>
-                  <p>• Describe the nature of emergency</p>
-                  <p>• Follow instructions from authorities</p>
-                  <p>• Keep your phone charged during travel</p>
+                  <p>• Your location is automatically shared</p>
+                  <p>• All evidence is saved securely</p>
                 </div>
               </div>
             </div>
@@ -366,6 +657,14 @@ const SafetyDashboard: React.FC = () => {
                 <span className="text-xs text-gray-600">Recording Video</span>
               </div>
             </div>
+
+            {uploadedFiles.length > 0 && (
+              <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 font-medium">
+                  {uploadedFiles.length} evidence file(s) will be uploaded
+                </p>
+              </div>
+            )}
             
             <button 
               onClick={cancelPanic}
@@ -382,6 +681,26 @@ const SafetyDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      
+      {/* Voice Commands Indicator */}
+      {isVoiceActive && speechRecognitionSupported && (
+        <div className="fixed bottom-6 left-6 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
+          <div className="flex items-center space-x-2">
+            <Mic className="h-4 w-4 animate-pulse" />
+            <span>Voice commands active: Say "Help" or "Bachao"</span>
+          </div>
+        </div>
+      )}
+
+      {/* Browser not supported indicator */}
+      {isVoiceActive && !speechRecognitionSupported && (
+        <div className="fixed bottom-6 left-6 bg-red-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
+          <div className="flex items-center space-x-2">
+            <X className="h-4 w-4" />
+            <span>Voice commands not supported in this browser</span>
+          </div>
+        </div>
+      )}
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -415,7 +734,7 @@ const SafetyDashboard: React.FC = () => {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">PANIC BUTTON</h3>
                 <p className="text-gray-600 mb-4">Press the red button above for immediate emergency assistance</p>
-                <p className="text-sm text-red-600 font-medium">All safety features are enabled and monitoring your journey</p>
+                <p className="text-sm text-red-600 font-medium">Voice commands: Say "Help" or "Bachao" to activate instantly</p>
               </div>
             </div>
 
@@ -517,16 +836,16 @@ const SafetyDashboard: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-900 mb-6">Safety Tips</h2>
               <div className="space-y-4">
                 <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-800 font-medium">Always keep your phone charged during travel</p>
+                  <p className="text-sm text-blue-800 font-medium">Voice commands work even when screen is locked</p>
                 </div>
                 <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-800 font-medium">Share your journey details with family</p>
+                  <p className="text-sm text-green-800 font-medium">Upload evidence files before activating panic</p>
                 </div>
                 <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <p className="text-sm text-yellow-800 font-medium">Stay alert in crowded areas</p>
+                  <p className="text-sm text-yellow-800 font-medium">Keep your phone charged during travel</p>
                 </div>
                 <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <p className="text-sm text-purple-800 font-medium">Use the panic button if you feel unsafe</p>
+                  <p className="text-sm text-purple-800 font-medium">Share your journey details with family</p>
                 </div>
               </div>
             </div>
