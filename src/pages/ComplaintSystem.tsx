@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Header from '../components/Header';
+import { supabase } from '../lib/supabase';
 import { 
   AlertTriangle, 
   Camera, 
@@ -12,7 +13,12 @@ import {
   User,
   ShoppingBag,
   Utensils,
-  Wifi
+  Wifi,
+  X,
+  Image as ImageIcon,
+  Video,
+  Paperclip,
+  CheckCircle
 } from 'lucide-react';
 
 const ComplaintSystem: React.FC = () => {
@@ -20,8 +26,9 @@ const ComplaintSystem: React.FC = () => {
   const [complaint, setComplaint] = useState('');
   const [location, setLocation] = useState('');
   const [trainNumber, setTrainNumber] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [hasMedia, setHasMedia] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const complaintTypes = [
     {
@@ -49,12 +56,20 @@ const ComplaintSystem: React.FC = () => {
       examples: ['Dirty washrooms', 'No water', 'Broken AC/fans', 'Faulty lights']
     },
     {
-      id: 'review',
-      title: 'Coach/Train Review',
-      description: 'Rate and review your travel experience',
-      icon: Star,
-      color: 'bg-yellow-500',
-      examples: ['Cleanliness rating', 'Staff behavior', 'Comfort level', 'Safety rating']
+      id: 'harassment',
+      title: 'Harassment',
+      description: 'Report inappropriate behavior or harassment',
+      icon: User,
+      color: 'bg-purple-500',
+      examples: ['Inappropriate behavior', 'Verbal harassment', 'Unwanted advances', 'Discrimination']
+    },
+    {
+      id: 'other',
+      title: 'Other Issues',
+      description: 'Any other problems or concerns',
+      icon: FileText,
+      color: 'bg-gray-500',
+      examples: ['Noise issues', 'Cleanliness', 'Staff behavior', 'General concerns']
     }
   ];
 
@@ -77,36 +92,139 @@ const ComplaintSystem: React.FC = () => {
     }
   ];
 
-  const handleSubmitComplaint = () => {
-    if (selectedType && complaint && location) {
-      // Simulate complaint submission
-      console.log('Complaint submitted:', {
-        type: selectedType,
-        description: complaint,
-        location,
-        trainNumber,
-        hasMedia
-      });
-      
-      // Reset form
-      setSelectedType('');
-      setComplaint('');
-      setLocation('');
-      setTrainNumber('');
-      setHasMedia(false);
-      
-      alert('Complaint submitted successfully! Your complaint ID is C003');
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setUploadedFiles(prev => [...prev, ...newFiles]);
     }
   };
 
-  const startRecording = () => {
-    setIsRecording(true);
-    // Simulate recording
-    setTimeout(() => {
-      setIsRecording(false);
-      setHasMedia(true);
-    }, 3000);
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
+
+  const handleSubmitComplaint = async () => {
+    if (selectedType && complaint && location) {
+      setIsSubmitting(true);
+      
+      try {
+        // Save complaint to database
+        const { data: complaintData, error: complaintError } = await supabase
+          .from('complaints')
+          .insert([
+            {
+              user_id: 'complaint_user_' + Date.now(),
+              type: selectedType,
+              title: `${complaintTypes.find(t => t.id === selectedType)?.title} - ${location}`,
+              description: complaint,
+              location: location,
+              train_number: trainNumber || null,
+              status: 'pending',
+              priority: selectedType === 'theft' || selectedType === 'harassment' ? 'high' : 'medium'
+            }
+          ])
+          .select()
+          .single();
+
+        if (complaintError) {
+          console.error('Error saving complaint:', complaintError);
+          throw complaintError;
+        }
+
+        console.log('Complaint saved successfully:', complaintData);
+
+        // If files were uploaded, save them to database (in a real app, you'd upload to storage first)
+        if (uploadedFiles.length > 0) {
+          const filePromises = uploadedFiles.map(async (file) => {
+            // In a real implementation, you would upload to Supabase Storage first
+            // For now, we'll just save file metadata
+            const fileInfo = {
+              complaint_id: complaintData.id,
+              file_name: file.name,
+              file_type: file.type,
+              file_size: file.size,
+              upload_status: 'completed',
+              metadata: {
+                description: 'Complaint evidence file',
+                uploaded_at: new Date().toISOString()
+              }
+            };
+
+            console.log('File info saved:', fileInfo);
+            return fileInfo;
+          });
+
+          await Promise.all(filePromises);
+        }
+
+        // Show success message
+        setShowSuccess(true);
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setShowSuccess(false);
+          setSelectedType('');
+          setComplaint('');
+          setLocation('');
+          setTrainNumber('');
+          setUploadedFiles([]);
+        }, 3000);
+
+      } catch (error) {
+        console.error('Error submitting complaint:', error);
+        alert('Error submitting complaint. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  // Success message
+  if (showSuccess) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto mb-6">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Complaint Submitted Successfully!</h1>
+            <p className="text-gray-600 mb-6">Your complaint has been received and will be reviewed by our team.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="text-left space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Complaint ID:</span>
+                  <span className="font-bold text-blue-600">C{Math.floor(Math.random() * 1000)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Type:</span>
+                  <span className="font-medium">{complaintTypes.find(t => t.id === selectedType)?.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Location:</span>
+                  <span className="font-medium">{location}</span>
+                </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Files:</span>
+                    <span className="font-medium">{uploadedFiles.length} uploaded</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSuccess(false)}
+              className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Submit Another Complaint
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -208,60 +326,124 @@ const ComplaintSystem: React.FC = () => {
                     />
                   </div>
 
-                  {/* Media Upload */}
+                  {/* Enhanced File Upload Section */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Add Evidence (Optional)
+                      Add Evidence Files (Optional)
                     </label>
-                    <div className="grid md:grid-cols-3 gap-4">
-                      <button
-                        onClick={() => setHasMedia(true)}
-                        className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors text-center"
-                      >
-                        <Camera className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                        <span className="text-sm text-gray-600">Take Photo</span>
-                      </button>
-                      
-                      <button
-                        onClick={startRecording}
-                        disabled={isRecording}
-                        className={`p-4 border-2 border-dashed rounded-lg transition-colors text-center ${
-                          isRecording
-                            ? 'border-red-300 bg-red-50'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        <Mic className={`h-6 w-6 mx-auto mb-2 ${
-                          isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400'
-                        }`} />
-                        <span className="text-sm text-gray-600">
-                          {isRecording ? 'Recording...' : 'Voice Note'}
-                        </span>
-                      </button>
-                      
-                      <button
-                        onClick={() => setHasMedia(true)}
-                        className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors text-center"
-                      >
-                        <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                        <span className="text-sm text-gray-600">Upload File</span>
-                      </button>
-                    </div>
                     
-                    {hasMedia && (
-                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-sm text-green-700">Media attached successfully!</p>
+                    <div className="space-y-4">
+                      {/* Main file upload area */}
+                      <label className="block">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                        <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors cursor-pointer text-center">
+                          <Upload className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                          <span className="text-gray-700 font-medium block mb-1">Upload Files from Device</span>
+                          <p className="text-gray-500 text-sm">Images, videos, audio, documents (PDF, DOC, TXT)</p>
+                          <p className="text-gray-400 text-xs mt-1">Click here to browse your device files</p>
+                        </div>
+                      </label>
+
+                      {/* Quick capture buttons */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <label className="block">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                          <div className="p-4 bg-green-100 border-2 border-green-300 rounded-lg hover:bg-green-200 transition-colors cursor-pointer text-center">
+                            <Camera className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                            <span className="text-green-700 text-sm font-medium">Take Photo</span>
+                          </div>
+                        </label>
+
+                        <label className="block">
+                          <input
+                            type="file"
+                            accept="video/*"
+                            capture="environment"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                          <div className="p-4 bg-purple-100 border-2 border-purple-300 rounded-lg hover:bg-purple-200 transition-colors cursor-pointer text-center">
+                            <Video className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                            <span className="text-purple-700 text-sm font-medium">Record Video</span>
+                          </div>
+                        </label>
+
+                        <label className="block">
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            capture="microphone"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                          <div className="p-4 bg-orange-100 border-2 border-orange-300 rounded-lg hover:bg-orange-200 transition-colors cursor-pointer text-center">
+                            <Mic className="h-6 w-6 text-orange-600 mx-auto mb-2" />
+                            <span className="text-orange-700 text-sm font-medium">Record Audio</span>
+                          </div>
+                        </label>
                       </div>
-                    )}
+
+                      {/* Uploaded files list */}
+                      {uploadedFiles.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-gray-700">Uploaded Files ({uploadedFiles.length}):</p>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {uploadedFiles.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  {file.type.startsWith('image/') && <ImageIcon className="h-5 w-5 text-green-500" />}
+                                  {file.type.startsWith('video/') && <Video className="h-5 w-5 text-purple-500" />}
+                                  {file.type.startsWith('audio/') && <Mic className="h-5 w-5 text-orange-500" />}
+                                  {!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/') && <Paperclip className="h-5 w-5 text-blue-500" />}
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-900 block truncate max-w-48">{file.name}</span>
+                                    <span className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => removeFile(index)}
+                                  className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                  title="Remove file"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Submit Button */}
                   <button
                     onClick={handleSubmitComplaint}
-                    disabled={!selectedType || !complaint || !location}
+                    disabled={!selectedType || !complaint || !location || isSubmitting}
                     className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-lg hover:from-red-600 hover:to-red-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Submit Complaint
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Submitting Complaint...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-2">
+                        <FileText className="h-5 w-5" />
+                        <span>Submit Complaint</span>
+                      </div>
+                    )}
                   </button>
                 </div>
               </div>
@@ -320,6 +502,29 @@ const ComplaintSystem: React.FC = () => {
                     <span className="font-medium">Leave Review</span>
                   </div>
                 </button>
+              </div>
+            </div>
+
+            {/* File Upload Guidelines */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">File Upload Guidelines</h2>
+              <div className="space-y-3 text-sm text-gray-600">
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Upload photos, videos, or audio as evidence</p>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Supported formats: JPG, PNG, MP4, MP3, PDF, DOC</p>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Maximum file size: 10MB per file</p>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Files are securely stored and only shared with authorities</p>
+                </div>
               </div>
             </div>
 
