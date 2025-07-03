@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Settings, Eye, Volume2, Type, Contrast, MousePointer, X, Moon, Sun, Mic } from 'lucide-react';
 
 const AccessibilityMenu: React.FC = () => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [settings, setSettings] = useState({
     fontSize: 'normal',
@@ -16,8 +18,10 @@ const AccessibilityMenu: React.FC = () => {
 
   // Voice recognition setup
   useEffect(() => {
+    let recognition: any = null;
+
     if (settings.voiceCommands && 'webkitSpeechRecognition' in window) {
-      const recognition = new (window as any).webkitSpeechRecognition();
+      recognition = new (window as any).webkitSpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
@@ -25,23 +29,108 @@ const AccessibilityMenu: React.FC = () => {
       recognition.onresult = (event: any) => {
         const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
         
-        if (transcript.includes('help') || transcript.includes('bachao')) {
+        console.log('Voice command detected:', transcript);
+        
+        // Check for help commands in English and Hindi
+        if (transcript.includes('help') || 
+            transcript.includes('bachao') || 
+            transcript.includes('बचाओ') ||
+            transcript.includes('emergency') ||
+            transcript.includes('danger')) {
+          
+          console.log('Emergency voice command detected, navigating to safety dashboard');
+          
           // Navigate to safety dashboard
-          window.location.href = '/safety';
+          navigate('/safety');
+          
+          // Optional: Show a visual confirmation
+          const notification = document.createElement('div');
+          notification.innerHTML = `
+            <div style="
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #ef4444;
+              color: white;
+              padding: 16px;
+              border-radius: 8px;
+              z-index: 9999;
+              font-weight: bold;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            ">
+              🚨 Voice Command Detected - Opening Safety Dashboard
+            </div>
+          `;
+          document.body.appendChild(notification);
+          
+          // Remove notification after 3 seconds
+          setTimeout(() => {
+            if (document.body.contains(notification)) {
+              document.body.removeChild(notification);
+            }
+          }, 3000);
         }
       };
 
       recognition.onerror = (event: any) => {
         console.log('Speech recognition error:', event.error);
+        
+        // If error occurs, try to restart recognition
+        if (event.error === 'no-speech' || event.error === 'audio-capture') {
+          setTimeout(() => {
+            if (settings.voiceCommands) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('Failed to restart recognition:', e);
+              }
+            }
+          }, 1000);
+        }
       };
 
-      recognition.start();
+      recognition.onend = () => {
+        // Automatically restart recognition if it's still enabled
+        if (settings.voiceCommands) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.log('Recognition restart failed:', e);
+            }
+          }, 500);
+        }
+      };
+
+      try {
+        recognition.start();
+        console.log('Voice recognition started');
+      } catch (e) {
+        console.log('Failed to start voice recognition:', e);
+      }
 
       return () => {
-        recognition.stop();
+        if (recognition) {
+          try {
+            recognition.stop();
+            console.log('Voice recognition stopped');
+          } catch (e) {
+            console.log('Error stopping recognition:', e);
+          }
+        }
       };
     }
-  }, [settings.voiceCommands]);
+
+    return () => {
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.log('Error in cleanup:', e);
+        }
+      }
+    };
+  }, [settings.voiceCommands, navigate]);
 
   useEffect(() => {
     // Apply accessibility settings to document
@@ -78,6 +167,9 @@ const AccessibilityMenu: React.FC = () => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  // Check if browser supports speech recognition
+  const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+
   return (
     <>
       {/* Accessibility Button */}
@@ -90,11 +182,21 @@ const AccessibilityMenu: React.FC = () => {
       </button>
 
       {/* Voice Commands Indicator */}
-      {settings.voiceCommands && (
+      {settings.voiceCommands && speechRecognitionSupported && (
         <div className="fixed bottom-6 left-6 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
           <div className="flex items-center space-x-2">
             <Mic className="h-4 w-4 animate-pulse" />
-            <span>Voice commands active: Say "Help"</span>
+            <span>Voice commands active: Say "Help" or "Bachao"</span>
+          </div>
+        </div>
+      )}
+
+      {/* Browser not supported indicator */}
+      {settings.voiceCommands && !speechRecognitionSupported && (
+        <div className="fixed bottom-6 left-6 bg-red-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
+          <div className="flex items-center space-x-2">
+            <X className="h-4 w-4" />
+            <span>Voice commands not supported in this browser</span>
           </div>
         </div>
       )}
@@ -146,9 +248,10 @@ const AccessibilityMenu: React.FC = () => {
                   </span>
                   <button
                     onClick={() => updateSetting('voiceCommands', !settings.voiceCommands)}
+                    disabled={!speechRecognitionSupported}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                       settings.voiceCommands ? 'bg-green-600' : 'bg-gray-200'
-                    }`}
+                    } ${!speechRecognitionSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
@@ -157,8 +260,11 @@ const AccessibilityMenu: React.FC = () => {
                     />
                   </button>
                 </label>
-                {settings.voiceCommands && (
+                {settings.voiceCommands && speechRecognitionSupported && (
                   <p className="text-xs text-green-600 mt-1">Say "Help" or "Bachao" to go to safety dashboard</p>
+                )}
+                {!speechRecognitionSupported && (
+                  <p className="text-xs text-red-600 mt-1">Voice commands not supported in this browser</p>
                 )}
               </div>
 
