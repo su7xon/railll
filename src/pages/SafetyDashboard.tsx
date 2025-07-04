@@ -55,10 +55,10 @@ const SafetyDashboard: React.FC = () => {
             transcript.includes('emergency') ||
             transcript.includes('danger')) {
           
-          console.log('Emergency voice command detected, activating panic mode');
+          console.log('Emergency voice command detected, activating panic mode directly');
           
-          // Directly activate panic mode
-          activatePanicFromVoice();
+          // Directly activate panic mode without showing menu
+          activatePanicDirectly();
         }
       };
 
@@ -178,8 +178,9 @@ const SafetyDashboard: React.FC = () => {
     }
   ];
 
-  const activatePanicFromVoice = () => {
-    // Show visual confirmation
+  // New function for direct panic activation from voice commands
+  const activatePanicDirectly = () => {
+    // Show visual confirmation that voice command was detected
     const notification = document.createElement('div');
     notification.innerHTML = `
       <div style="
@@ -194,7 +195,7 @@ const SafetyDashboard: React.FC = () => {
         font-weight: bold;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       ">
-        🚨 Voice Command Detected - Activating Panic Mode
+        🚨 Voice Command Detected - Activating Emergency Mode
       </div>
     `;
     document.body.appendChild(notification);
@@ -206,7 +207,7 @@ const SafetyDashboard: React.FC = () => {
       }
     }, 2000);
 
-    // Activate panic mode directly
+    // Directly activate panic mode
     activatePanic();
   };
 
@@ -715,7 +716,7 @@ const SafetyDashboard: React.FC = () => {
         <div className="fixed bottom-6 left-6 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
           <div className="flex items-center space-x-2">
             <Mic className="h-4 w-4 animate-pulse" />
-            <span>Voice commands active: Say "Help" or "Bachao"</span>
+            <span>Voice commands active: Say "Help" or "Bachao" for instant panic activation</span>
           </div>
         </div>
       )}
