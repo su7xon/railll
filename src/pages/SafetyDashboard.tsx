@@ -19,7 +19,10 @@ import {
   Upload,
   FileText,
   Image as ImageIcon,
-  Paperclip
+  Paperclip,
+  MessageCircle,
+  Send,
+  Bot
 } from 'lucide-react';
 
 const SafetyDashboard: React.FC = () => {
@@ -32,8 +35,12 @@ const SafetyDashboard: React.FC = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [alertError, setAlertError] = useState<string | null>(null);
+  const [showAIDost, setShowAIDost] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{id: number, text: string, sender: 'user' | 'ai', timestamp: Date}>>([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isAITyping, setIsAITyping] = useState(false);
 
-  // Voice recognition setup for direct panic activation
+  // Voice recognition setup for panic activation
   useEffect(() => {
     let recognition: any = null;
 
@@ -55,10 +62,10 @@ const SafetyDashboard: React.FC = () => {
             transcript.includes('emergency') ||
             transcript.includes('danger')) {
           
-          console.log('Emergency voice command detected, activating panic mode directly');
+          console.log('Emergency voice command detected, opening emergency menu and activating panic');
           
-          // Directly activate panic mode without showing menu
-          activatePanicDirectly();
+          // Open emergency menu and auto-activate panic
+          activatePanicFromVoice();
         }
       };
 
@@ -178,9 +185,9 @@ const SafetyDashboard: React.FC = () => {
     }
   ];
 
-  // New function for direct panic activation from voice commands
-  const activatePanicDirectly = () => {
-    // Show visual confirmation that voice command was detected
+  // Function for voice-activated panic (opens menu and auto-activates panic)
+  const activatePanicFromVoice = () => {
+    // Show visual confirmation
     const notification = document.createElement('div');
     notification.innerHTML = `
       <div style="
@@ -195,7 +202,7 @@ const SafetyDashboard: React.FC = () => {
         font-weight: bold;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       ">
-        🚨 Voice Command Detected - Activating Emergency Mode
+        🚨 Voice Command Detected - Opening Emergency Menu
       </div>
     `;
     document.body.appendChild(notification);
@@ -207,8 +214,13 @@ const SafetyDashboard: React.FC = () => {
       }
     }, 2000);
 
-    // Directly activate panic mode
-    activatePanic();
+    // Open emergency menu first
+    setShowEmergencyMenu(true);
+    
+    // Auto-activate panic after a short delay
+    setTimeout(() => {
+      activatePanic();
+    }, 1000);
   };
 
   const activatePanic = () => {
@@ -391,8 +403,196 @@ const SafetyDashboard: React.FC = () => {
     alert(`${message}\nDialing ${number}`);
   };
 
+  // AI DOST Chatbot Functions
+  const sendMessageToAI = async (message: string) => {
+    setIsAITyping(true);
+    
+    try {
+      // Simulate API call to Qwen AI via n8n
+      // In real implementation, you would call your n8n webhook endpoint
+      const response = await fetch('/api/ai-dost', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI service unavailable');
+      }
+
+      const data = await response.json();
+      
+      // Add AI response to chat
+      const aiResponse = {
+        id: Date.now() + 1,
+        text: data.response || getDefaultAIResponse(message),
+        sender: 'ai' as const,
+        timestamp: new Date()
+      };
+
+      setChatMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error calling AI service:', error);
+      
+      // Fallback to default responses
+      const aiResponse = {
+        id: Date.now() + 1,
+        text: getDefaultAIResponse(message),
+        sender: 'ai' as const,
+        timestamp: new Date()
+      };
+
+      setChatMessages(prev => [...prev, aiResponse]);
+    } finally {
+      setIsAITyping(false);
+    }
+  };
+
+  const getDefaultAIResponse = (message: string): string => {
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('emergency') || lowerMessage.includes('help') || lowerMessage.includes('panic')) {
+      return "I understand you need emergency help. Please use the red PANIC BUTTON immediately or say 'Help' to activate emergency services. Your safety is the top priority. Railway Police (139) and emergency services will be contacted instantly.";
+    }
+    
+    if (lowerMessage.includes('train') || lowerMessage.includes('booking')) {
+      return "I can help you with train-related queries! You can check train status, book tickets, or track your PNR. What specific information do you need about your train journey?";
+    }
+    
+    if (lowerMessage.includes('safety') || lowerMessage.includes('security')) {
+      return "Railway safety is very important. Always keep your belongings secure, stay alert, and don't hesitate to use our safety features. The voice command system is always active - just say 'Help' if you need immediate assistance.";
+    }
+    
+    if (lowerMessage.includes('complaint') || lowerMessage.includes('problem')) {
+      return "You can file complaints about food quality, cleanliness, harassment, or any other issues through our complaint system. Would you like me to guide you on how to submit a complaint with evidence?";
+    }
+    
+    return "Hello! I'm AI DOST, your railway travel assistant. I can help you with train bookings, safety guidance, complaint filing, and emergency assistance. How can I help you today?";
+  };
+
+  const handleSendMessage = () => {
+    if (currentMessage.trim()) {
+      // Add user message
+      const userMessage = {
+        id: Date.now(),
+        text: currentMessage,
+        sender: 'user' as const,
+        timestamp: new Date()
+      };
+
+      setChatMessages(prev => [...prev, userMessage]);
+      
+      // Send to AI
+      sendMessageToAI(currentMessage);
+      
+      // Clear input
+      setCurrentMessage('');
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   // Check if browser supports speech recognition
   const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+
+  // AI DOST Chatbot Component
+  if (showAIDost) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col">
+            {/* Chat Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Bot className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">AI DOST</h2>
+                  <p className="text-sm text-gray-600">Your Railway Travel Assistant</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowAIDost(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <Bot className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to AI DOST!</h3>
+                  <p className="text-gray-600">I'm here to help you with railway travel, safety, and any questions you have.</p>
+                </div>
+              )}
+
+              {chatMessages.map((message) => (
+                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    message.sender === 'user' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-gray-100 text-gray-900'
+                  }`}>
+                    <p className="text-sm">{message.text}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {isAITyping && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-6 border-t border-gray-200">
+              <div className="flex space-x-3">
+                <input
+                  type="text"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything about railway travel..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!currentMessage.trim() || isAITyping}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Success Message Popup
   if (showSuccessMessage) {
@@ -582,7 +782,7 @@ const SafetyDashboard: React.FC = () => {
                     />
                   </button>
                 </div>
-                <p className="text-green-700 text-sm">Say "Help" or "Bachao" to activate panic button directly</p>
+                <p className="text-green-700 text-sm">Say "Help" or "Bachao" to activate panic button</p>
                 {isVoiceActive && speechRecognitionSupported && (
                   <div className="mt-2 flex items-center space-x-2 text-green-600 text-sm">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -631,6 +831,21 @@ const SafetyDashboard: React.FC = () => {
                   </div>
                 </button>
               </div>
+
+              {/* AI DOST Button */}
+              <button
+                onClick={() => {
+                  setShowEmergencyMenu(false);
+                  setShowAIDost(true);
+                }}
+                className="w-full p-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl hover:from-purple-600 hover:to-blue-600 transition-colors flex items-center space-x-3"
+              >
+                <Bot className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-bold">AI DOST</div>
+                  <div className="text-sm opacity-90">Your Travel Assistant</div>
+                </div>
+              </button>
 
               {/* Safety Tips */}
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -716,7 +931,7 @@ const SafetyDashboard: React.FC = () => {
         <div className="fixed bottom-6 left-6 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
           <div className="flex items-center space-x-2">
             <Mic className="h-4 w-4 animate-pulse" />
-            <span>Voice commands active: Say "Help" or "Bachao" for instant panic activation</span>
+            <span>Voice commands active: Say "Help" or "Bachao" for emergency</span>
           </div>
         </div>
       )}
@@ -763,7 +978,7 @@ const SafetyDashboard: React.FC = () => {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">PANIC BUTTON</h3>
                 <p className="text-gray-600 mb-4">Press the red button above for immediate emergency assistance</p>
-                <p className="text-sm text-red-600 font-medium">Voice commands: Say "Help" or "Bachao" to activate instantly</p>
+                <p className="text-sm text-red-600 font-medium">Voice commands: Say "Help" or "Bachao" to activate</p>
               </div>
             </div>
 
@@ -835,6 +1050,23 @@ const SafetyDashboard: React.FC = () => {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* AI DOST Quick Access */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">AI Assistant</h2>
+              <button
+                onClick={() => setShowAIDost(true)}
+                className="w-full p-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl hover:from-purple-600 hover:to-blue-600 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <Bot className="h-6 w-6" />
+                  <div className="text-left">
+                    <div className="font-bold">AI DOST</div>
+                    <div className="text-sm opacity-90">Ask me anything!</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
             {/* Emergency Contacts */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Emergency Contacts</h2>
