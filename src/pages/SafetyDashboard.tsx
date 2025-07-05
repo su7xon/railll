@@ -64,7 +64,7 @@ const SafetyDashboard: React.FC = () => {
           
           console.log('Emergency voice command detected, directly activating panic mode');
           
-          // Directly activate panic mode (skip emergency menu)
+          // DIRECTLY activate panic mode - skip all menus
           activatePanicDirectly();
         }
       };
@@ -185,7 +185,7 @@ const SafetyDashboard: React.FC = () => {
     }
   ];
 
-  // Function for voice-activated panic (directly activate panic mode)
+  // Function for DIRECT voice-activated panic (skips all menus)
   const activatePanicDirectly = () => {
     // Show visual confirmation
     const notification = document.createElement('div');
@@ -214,8 +214,25 @@ const SafetyDashboard: React.FC = () => {
       }
     }, 2000);
 
-    // Directly activate panic mode
-    activatePanic();
+    // DIRECTLY activate panic mode - no menu, straight to countdown
+    setIsPanicActive(true);
+    setIsRecording(true);
+    setCountdown(10);
+    setShowEmergencyMenu(false);
+    setAlertError(null);
+    
+    // Start countdown timer
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Here would trigger actual emergency protocols
+          sendEmergencyAlert();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const activatePanic = () => {
@@ -398,31 +415,30 @@ const SafetyDashboard: React.FC = () => {
     alert(`${message}\nDialing ${number}`);
   };
 
-  // AI DOST Chatbot Functions - Fixed Network Error Handling
+  // AI DOST Chatbot Functions
   const sendMessageToAI = async (message: string) => {
     setIsAITyping(true);
     
     try {
-      // Note: Using local intelligent responses as primary method
-      // External AI service integration would require proper API endpoint configuration
-      const aiResponseText = getIntelligentResponse(message);
+      // Simulate AI processing delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Add AI response to chat
+      // Use intelligent local responses
       const aiResponse = {
         id: Date.now() + 1,
-        text: aiResponseText,
+        text: getIntelligentResponse(message),
         sender: 'ai' as const,
         timestamp: new Date()
       };
 
       setChatMessages(prev => [...prev, aiResponse]);
     } catch (error) {
-      // Graceful error handling - should not reach here with current implementation
-      console.log('Fallback to local AI responses');
+      console.error('Error in AI processing:', error);
       
+      // Fallback response
       const aiResponse = {
         id: Date.now() + 1,
-        text: getIntelligentResponse(message),
+        text: "I'm here to help you with railway travel and safety. How can I assist you today?",
         sender: 'ai' as const,
         timestamp: new Date()
       };
@@ -436,53 +452,78 @@ const SafetyDashboard: React.FC = () => {
   const getIntelligentResponse = (message: string): string => {
     const lowerMessage = message.toLowerCase();
     
-    // Emergency responses
-    if (lowerMessage.includes('emergency') || lowerMessage.includes('help') || lowerMessage.includes('panic') || lowerMessage.includes('danger')) {
-      return "🚨 EMERGENCY DETECTED! I'm immediately activating the PANIC BUTTON for you. Railway Police (139) and emergency services are being contacted. Stay calm and follow these steps:\n\n1. Stay in a safe location\n2. Keep your phone with you\n3. Your location is being shared automatically\n4. Help is on the way\n\nIf you can, try to move to a crowded area or near railway staff.";
+    // Emergency and Safety
+    if (lowerMessage.includes('emergency') || lowerMessage.includes('help') || lowerMessage.includes('panic') || lowerMessage.includes('danger') || lowerMessage.includes('bachao')) {
+      return "🚨 EMERGENCY DETECTED! I understand you need immediate help. Please use the red PANIC BUTTON immediately or say 'Help'/'Bachao' to activate emergency services. Your safety is the top priority. Railway Police (139) and emergency services will be contacted instantly with your location.";
     }
     
-    // Safety and security
-    if (lowerMessage.includes('safety') || lowerMessage.includes('security') || lowerMessage.includes('theft') || lowerMessage.includes('harassment')) {
-      return "🛡️ Your safety is my top priority. Here are immediate safety tips:\n\n• Use the PANIC BUTTON for emergencies\n• Voice commands work - say 'Help' or 'Bachao'\n• Keep valuables secure and visible\n• Stay in well-lit, crowded areas\n• Trust your instincts\n\nFor immediate help: Railway Police (139), Women Helpline (1091). Would you like me to guide you through filing a safety complaint?";
+    // Train Booking and Status
+    if (lowerMessage.includes('train') || lowerMessage.includes('booking') || lowerMessage.includes('ticket')) {
+      if (lowerMessage.includes('book') || lowerMessage.includes('reservation')) {
+        return "I can help you book train tickets! You can search for trains by entering your departure and destination cities, select travel date, and choose the number of passengers. We offer various classes like AC 1 Tier, AC 2 Tier, AC 3 Tier, and Sleeper. Would you like me to guide you through the booking process?";
+      }
+      if (lowerMessage.includes('status') || lowerMessage.includes('running') || lowerMessage.includes('delay')) {
+        return "To check train running status, you can enter your train number in the Train Status section. I'll show you real-time location, current delays, next station, and expected arrival times. You can also track if your train is on time or delayed.";
+      }
+      if (lowerMessage.includes('pnr')) {
+        return "For PNR status, enter your 10-digit PNR number to check booking confirmation, seat details, passenger information, and current reservation status. You can also process refunds if needed.";
+      }
+      return "I can help you with train bookings, checking train status, PNR verification, and seat availability. What specific information do you need about your train journey?";
     }
     
-    // Train booking and travel
-    if (lowerMessage.includes('train') || lowerMessage.includes('booking') || lowerMessage.includes('ticket') || lowerMessage.includes('reservation')) {
-      return "🚂 I can help you with train travel! Here's what I can assist with:\n\n• Check train status and delays\n• PNR status verification\n• Booking new tickets\n• Seat availability\n• Route information\n• Platform details\n\nWhat specific train information do you need? You can also check train status and book tickets directly from the main dashboard.";
+    // Safety and Security
+    if (lowerMessage.includes('safety') || lowerMessage.includes('security') || lowerMessage.includes('protection')) {
+      return "Railway safety is our top priority! Our safety features include: 🎤 Voice commands (say 'Help' or 'Bachao'), 📍 Live GPS tracking, 📹 Auto recording during emergencies, 📞 Quick access to Railway Police (139). The voice command system is always active - just say 'Help' if you need immediate assistance.";
     }
     
-    // Complaints and issues
-    if (lowerMessage.includes('complaint') || lowerMessage.includes('problem') || lowerMessage.includes('issue') || lowerMessage.includes('food') || lowerMessage.includes('dirty') || lowerMessage.includes('clean')) {
-      return "📝 I can help you file complaints effectively:\n\n• Food quality issues\n• Cleanliness problems\n• Facility maintenance\n• Staff behavior\n• Overcharging\n\nFor best results:\n✓ Take photos as evidence\n✓ Note exact location/coach\n✓ Include time and date\n✓ Be specific about the issue\n\nWould you like me to guide you through filing a complaint?";
+    // Complaints and Issues
+    if (lowerMessage.includes('complaint') || lowerMessage.includes('problem') || lowerMessage.includes('issue') || lowerMessage.includes('report')) {
+      if (lowerMessage.includes('food')) {
+        return "For food-related complaints, you can report overpriced items, poor quality, hygiene issues, or vendor problems. Upload photos of food and bills as evidence. Your complaints help improve food services for all passengers.";
+      }
+      if (lowerMessage.includes('theft') || lowerMessage.includes('stolen') || lowerMessage.includes('harassment')) {
+        return "For serious issues like theft or harassment, please file a complaint immediately and consider using the PANIC BUTTON for urgent situations. Upload any evidence (photos, videos) and provide exact location details. Railway Police will be notified.";
+      }
+      return "You can file complaints about theft, food quality, facilities, harassment, or other issues. Provide detailed descriptions, upload evidence files, and specify exact locations. Your feedback helps improve railway services for everyone.";
     }
     
-    // Station and facilities
-    if (lowerMessage.includes('station') || lowerMessage.includes('platform') || lowerMessage.includes('facility') || lowerMessage.includes('wifi') || lowerMessage.includes('washroom')) {
-      return "🏢 Station facilities information:\n\n• WiFi: Available at major stations (may be slow)\n• Washrooms: Located on platforms and concourse\n• Food courts: Available at most stations\n• Waiting rooms: AC and non-AC options\n• Parking: Available with charges\n• Medical aid: First aid posts available\n\nNeed specific information about a particular station or facility?";
-    }
-    
-    // Hotel booking
+    // Hotels and Accommodation
     if (lowerMessage.includes('hotel') || lowerMessage.includes('accommodation') || lowerMessage.includes('stay') || lowerMessage.includes('room')) {
-      return "🏨 I can help you find accommodation:\n\n• Student-friendly budget hotels\n• Business travel options\n• Hourly stay facilities\n• Luxury accommodations\n• Near railway stations\n\nSpecial offers available:\n💰 Student discounts up to 20%\n⏰ Hourly rates from ₹50\n🏢 Corporate rates available\n\nWould you like me to help you search for hotels?";
+      return "I can help you find hotels near railway stations! We offer: 🎓 Student-friendly options with discounts, 💼 Business travel hotels, ⏰ Hourly stay options, 👑 Luxury accommodations. You can filter by category, check ratings, and book directly. Many hotels offer special railway passenger discounts.";
     }
     
-    // Food and dining
-    if (lowerMessage.includes('food') || lowerMessage.includes('meal') || lowerMessage.includes('hungry') || lowerMessage.includes('eat') || lowerMessage.includes('restaurant')) {
-      return "🍽️ Food and dining options:\n\n• Order food to your seat\n• Platform vendors (check reviews)\n• Pantry car meals\n• Station restaurants\n• Local specialties at stations\n\nFood safety tips:\n✓ Check vendor ratings\n✓ Prefer hot, freshly cooked food\n✓ Carry water bottles\n✓ Report food quality issues\n\nWant me to help you order food or find good vendors?";
+    // Food Services
+    if (lowerMessage.includes('food') || lowerMessage.includes('meal') || lowerMessage.includes('order') || lowerMessage.includes('delivery')) {
+      return "For food services, you can: 🍽️ Order food delivery to your seat, 📝 Review food quality and vendors, 🚨 Report food complaints with photos. We have various cuisines available - North Indian, South Indian, Chinese, and regional specialties. Food is delivered directly to your coach and seat number.";
     }
     
-    // General greetings
+    // Reviews and Ratings
+    if (lowerMessage.includes('review') || lowerMessage.includes('rating') || lowerMessage.includes('feedback')) {
+      return "You can rate and review: 🚂 Trains and their services, 🍽️ Food vendors and quality, 🛏️ Coach cleanliness and comfort, 🏢 Station facilities. Your reviews help fellow passengers make better choices and help railways improve services. You can also upload photos with your reviews.";
+    }
+    
+    // Live Tracking and Location
+    if (lowerMessage.includes('track') || lowerMessage.includes('location') || lowerMessage.includes('live') || lowerMessage.includes('gps')) {
+      return "Live tracking features include: 📍 Real-time train location, 🚉 Current and next station info, ⏱️ Accurate arrival/departure times, 🚃 Coach-specific tracking. You can share your live location with family and track your journey progress in real-time.";
+    }
+    
+    // Offers and Discounts
+    if (lowerMessage.includes('offer') || lowerMessage.includes('discount') || lowerMessage.includes('deal') || lowerMessage.includes('coupon')) {
+      return "Current offers include: 🎓 Student discounts (20% off), 👥 Group booking deals, 👴 Senior citizen offers, 💳 Payment-specific cashbacks, 🎯 First-time user bonuses. Use coupon codes during booking to get instant discounts on your train tickets.";
+    }
+    
+    // Emergency Contacts
+    if (lowerMessage.includes('contact') || lowerMessage.includes('helpline') || lowerMessage.includes('phone') || lowerMessage.includes('number')) {
+      return "Important emergency contacts: 🚨 Railway Police: 139, 🚑 Ambulance: 108, 👮 General Emergency: 112, 👩 Women Helpline: 1091. All these numbers are available 24/7. You can also use voice commands 'Help' or 'Bachao' for instant emergency activation.";
+    }
+    
+    // General Greetings
     if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('namaste')) {
-      return "🙏 Namaste! I'm AI DOST, your intelligent railway travel assistant. I'm here to help you with:\n\n🚨 Emergency assistance & safety\n🚂 Train bookings & status\n📝 Filing complaints\n🏨 Hotel bookings\n🍽️ Food ordering\n🛡️ Travel safety tips\n\nHow can I assist you today? Remember, for emergencies, just say 'Help' and I'll activate the panic button immediately!";
+      return "Hello! 🙏 I'm AI DOST, your intelligent railway travel assistant. I can help you with train bookings, safety guidance, complaint filing, hotel reservations, food orders, live tracking, and emergency assistance. How can I make your railway journey better today?";
     }
     
-    // Thanks and appreciation
-    if (lowerMessage.includes('thank') || lowerMessage.includes('thanks') || lowerMessage.includes('dhanyawad')) {
-      return "🙏 You're most welcome! I'm always here to help make your railway journey safe and comfortable. Remember:\n\n• Voice commands are always active\n• Emergency help is just a word away\n• I'm available 24/7 for any assistance\n\nSafe travels! Feel free to ask me anything anytime.";
-    }
-    
-    // Default intelligent response
-    return "🤖 Hello! I'm AI DOST, your smart railway travel companion. I understand you're looking for help, and I'm here for you!\n\n🚨 **Emergency?** Say 'Help' or use the panic button\n🚂 **Travel?** I can help with bookings, status, PNR\n🛡️ **Safety?** Get tips and file complaints\n🏨 **Stay?** Find hotels and accommodations\n🍽️ **Food?** Order meals or find good vendors\n\nWhat would you like assistance with? I'm designed to understand your needs and provide helpful, accurate information for safe railway travel.";
+    // Default comprehensive response
+    return "Hello! I'm AI DOST, your comprehensive railway travel assistant powered by Local AI. I can help you with:\n\n🚂 Train bookings and PNR status\n🛡️ Safety features and emergency assistance\n📝 Filing complaints with evidence\n🏨 Hotel bookings near stations\n🍽️ Food delivery to your seat\n⭐ Reviews and ratings\n📍 Live train tracking\n🎁 Offers and discounts\n📞 Emergency contacts\n\nWhat would you like assistance with today?";
   };
 
   const handleSendMessage = () => {
@@ -523,56 +564,43 @@ const SafetyDashboard: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col">
             {/* Chat Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-white bg-opacity-20 rounded-full">
-                  <Bot className="h-6 w-6" />
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Bot className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">AI DOST</h2>
-                  <p className="text-sm opacity-90">Your Intelligent Railway Assistant</p>
+                  <h2 className="text-xl font-bold text-gray-900">AI DOST</h2>
+                  <p className="text-sm text-gray-600">Your Railway Travel Assistant</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowAIDost(false)}
-                className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5 text-gray-600" />
               </button>
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {chatMessages.length === 0 && (
                 <div className="text-center py-8">
-                  <div className="p-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full w-16 h-16 mx-auto mb-4">
-                    <Bot className="h-8 w-8 text-blue-600 mx-auto mt-2" />
-                  </div>
+                  <Bot className="h-12 w-12 text-blue-500 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to AI DOST!</h3>
-                  <p className="text-gray-600 mb-4">I'm your intelligent railway travel assistant, powered by advanced AI.</p>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                    <p className="text-blue-800 font-medium mb-2">I can help you with:</p>
-                    <div className="text-blue-700 text-sm space-y-1">
-                      <p>🚨 Emergency assistance & panic button</p>
-                      <p>🚂 Train bookings, status & PNR checks</p>
-                      <p>🛡️ Safety tips & complaint filing</p>
-                      <p>🏨 Hotel bookings & accommodations</p>
-                      <p>🍽️ Food ordering & vendor reviews</p>
-                      <p>📍 Station information & facilities</p>
-                    </div>
-                  </div>
+                  <p className="text-gray-600">I'm here to help you with railway travel, safety, and any questions you have.</p>
                 </div>
               )}
 
               {chatMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg shadow-sm ${
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                     message.sender === 'user' 
                       ? 'bg-blue-500 text-white' 
-                      : 'bg-white text-gray-900 border border-gray-200'
+                      : 'bg-gray-100 text-gray-900'
                   }`}>
                     <p className="text-sm whitespace-pre-line">{message.text}</p>
-                    <p className={`text-xs mt-2 ${
+                    <p className={`text-xs mt-1 ${
                       message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
                     }`}>
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -583,15 +611,11 @@ const SafetyDashboard: React.FC = () => {
 
               {isAITyping && (
                 <div className="flex justify-start">
-                  <div className="bg-white text-gray-900 px-4 py-3 rounded-lg border border-gray-200 shadow-sm">
-                    <div className="flex items-center space-x-2">
-                      <Bot className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm text-gray-600">AI DOST is thinking...</span>
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      </div>
+                  <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
                   </div>
                 </div>
@@ -599,27 +623,24 @@ const SafetyDashboard: React.FC = () => {
             </div>
 
             {/* Chat Input */}
-            <div className="p-6 border-t border-gray-200 bg-white rounded-b-2xl">
+            <div className="p-6 border-t border-gray-200">
               <div className="flex space-x-3">
                 <input
                   type="text"
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask me anything about railway travel, safety, or emergencies..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ask me anything about railway travel..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!currentMessage.trim() || isAITyping}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="h-5 w-5" />
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Powered by Local AI • Available 24/7 • Emergency commands always active
-              </p>
             </div>
           </div>
         </div>
@@ -815,7 +836,7 @@ const SafetyDashboard: React.FC = () => {
                     />
                   </button>
                 </div>
-                <p className="text-green-700 text-sm">Say "Help" or "Bachao" to activate panic button</p>
+                <p className="text-green-700 text-sm">Say "Help" or "Bachao" to directly activate panic countdown</p>
                 {isVoiceActive && speechRecognitionSupported && (
                   <div className="mt-2 flex items-center space-x-2 text-green-600 text-sm">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -876,7 +897,7 @@ const SafetyDashboard: React.FC = () => {
                 <Bot className="h-6 w-6" />
                 <div className="text-left">
                   <div className="font-bold">AI DOST</div>
-                  <div className="text-sm opacity-90">Your Intelligent Assistant</div>
+                  <div className="text-sm opacity-90">Your Travel Assistant</div>
                 </div>
               </button>
 
@@ -884,9 +905,9 @@ const SafetyDashboard: React.FC = () => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-semibold text-yellow-800 mb-2">Safety Guidelines:</h4>
                 <div className="text-yellow-700 text-sm space-y-1">
+                  <p>• Say "Help" or "Bachao" for direct panic activation</p>
                   <p>• Upload photos/videos as evidence</p>
                   <p>• Voice commands work even when screen is off</p>
-                  <p>• Stay calm and speak clearly</p>
                   <p>• Your location is automatically shared</p>
                   <p>• All evidence is saved securely</p>
                 </div>
@@ -912,7 +933,7 @@ const SafetyDashboard: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">EMERGENCY ACTIVATED</h2>
             <p className="text-gray-600 mb-6">Alert being sent to Railway Police and your emergency contacts</p>
             
-            <div className="text-4xl font-bold text-red-500 mb-6">{countdown}</div>
+            <div className="text-6xl font-bold text-red-500 mb-6 animate-pulse">{countdown}</div>
             
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="flex flex-col items-center">
@@ -964,7 +985,7 @@ const SafetyDashboard: React.FC = () => {
         <div className="fixed bottom-6 left-6 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-40">
           <div className="flex items-center space-x-2">
             <Mic className="h-4 w-4 animate-pulse" />
-            <span>Voice commands active: Say "Help" or "Bachao" for emergency</span>
+            <span>Voice commands active: Say "Help" or "Bachao" for direct emergency activation</span>
           </div>
         </div>
       )}
@@ -1011,7 +1032,7 @@ const SafetyDashboard: React.FC = () => {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">PANIC BUTTON</h3>
                 <p className="text-gray-600 mb-4">Press the red button above for immediate emergency assistance</p>
-                <p className="text-sm text-red-600 font-medium">Voice commands: Say "Help" or "Bachao" to activate directly</p>
+                <p className="text-sm text-red-600 font-medium">Voice commands: Say "Help" or "Bachao" for direct activation</p>
               </div>
             </div>
 
@@ -1094,11 +1115,10 @@ const SafetyDashboard: React.FC = () => {
                   <Bot className="h-6 w-6" />
                   <div className="text-left">
                     <div className="font-bold">AI DOST</div>
-                    <div className="text-sm opacity-90">Your Intelligent Assistant</div>
+                    <div className="text-sm opacity-90">Ask me anything!</div>
                   </div>
                 </div>
               </button>
-              <p className="text-xs text-gray-500 mt-2 text-center">Powered by Local AI • 24/7 Available</p>
             </div>
 
             {/* Emergency Contacts */}
@@ -1131,7 +1151,7 @@ const SafetyDashboard: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-900 mb-6">Safety Tips</h2>
               <div className="space-y-4">
                 <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-800 font-medium">Voice commands work even when screen is locked</p>
+                  <p className="text-sm text-blue-800 font-medium">Say "Help" or "Bachao" for direct panic activation</p>
                 </div>
                 <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-sm text-green-800 font-medium">Upload evidence files before activating panic</p>
